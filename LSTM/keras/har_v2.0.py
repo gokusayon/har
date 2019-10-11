@@ -24,16 +24,15 @@ from keras.layers import Dense, Conv2D, MaxPooling2D, Flatten, Dropout,LSTM
 #from keras import backend as K
 from keras import optimizers
 #K.set_image_dim_ordering('th')
+
 # setting up a random seed for reproducibility
 random_seed = 611
 np.random.seed(random_seed)
 
 # matplotlib inline
 plt.style.use('ggplot')
-# defining function for loading the dataset
 
 #---------------------------------Dataset and Preprocessing---------------------------------------
-plt.style.use('ggplot')
 def read_data(file_path):
 
     column_names = ['user-id',
@@ -113,7 +112,7 @@ def segment_signal(data,window_size = 90,step = 45):
         segments = np.vstack([segments,np.dstack([x,y,z])])
         labels = np.append(labels,stats.mode(data["activity"][i:i+window_size])[0][0])
 #        print(".", end="")
-        print(i,".", i+window_size)
+#        print(i,".", i+window_size)
         
     return segments, labels
 
