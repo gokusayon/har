@@ -14,6 +14,7 @@ drive.mount('/gdrive')
 # %cd '/gdrive/My Drive/ADM/Colab/LSTM'
 
 from data_collection import *
+from lstm_pickle_dump import *
 import pandas as pd
 import numpy as np
 import seaborn as sns
@@ -137,7 +138,7 @@ def generate_random_hyperparams(lr_min, lr_max, bt_min, bt_max,hu_min, hu_max, e
     random_batch_size = np.random.uniform(bt_min, bt_max)
     hidden_units = np.random.uniform(hu_min, hu_max)
     epochs = np.random.uniform(ep_min, ep_max)
-    return random_learning_rate,int(random_batch_size) ,int(hidden_units), int(epochs), random_l2loss_rate
+    return round(random_learning_rate, 5) ,int(random_batch_size) ,int(hidden_units), int(epochs),round(random_l2loss_rate, 5) 
 
 
 def get_segment(N_TIME_STEPS, step):
@@ -217,7 +218,7 @@ def run_model(N_TIME_STEPS,BATCH_SIZE, LEARNING_RATE,N_EPOCHS, N_HIDDEN_UNITS,L2
     print("\nCreating Segments ... ")
     X_train, X_test, y_train, y_test = get_segment(N_TIME_STEPS, int(N_TIME_STEPS/2))
     
-    train_writer, test_writer, validation_writer = tesorboard_params(N_TIME_STEPS)
+#    train_writer, test_writer, validation_writer = tesorboard_params(N_TIME_STEPS)
     
     # Early Stopping Params
     best_acc = 0
@@ -315,11 +316,11 @@ def run_model(N_TIME_STEPS,BATCH_SIZE, LEARNING_RATE,N_EPOCHS, N_HIDDEN_UNITS,L2
     printCM(predictions, y_test)
     
     print(f'\nfinal results: accuracy: {acc_final} loss: {loss_final}\n')    
-    modal_summary = { 'history' : history, 'predictions' : predictions, 'true_labels' :  y_test, 'sess' : sess, 'score' : { 'acc' : acc_final, 'loss' : loss_final, }, 'saver' : saver }
+    modal_summary = { 'history' : history, 'predictions' : predictions, 'true_labels' :  y_test, 'score' : { 'acc' : acc_final, 'loss' : loss_final, }}
     
     if save_modal == False:
         sess.close()
-    return modal_summary
+    return modal_summary, saver, sess
 
 #----------------------------------------- Setting Initial Values -------------------------------
 #Setting up initial values
@@ -335,58 +336,46 @@ dataset = pd.read_csv("D:/Bits/Sem 3/ADM/Project/python/har/Dataset/final/colab_
 
 N_FEATURES = 6
 N_CLASSES = 6
-performance_records = {}
+PICKLE_DIR = 'pickle/'
 LOGS_DIR = './logs/'
 
 #----------------------------- Tuned Parameters -------------------------------------------
 
 #----------------------------- Hyper Parameter Tuning -------------------------------------------
-
-# Random Initial Parameters
-BATCH_SIZE = 413
-N_EPOCHS = 43
-N_HIDDEN_UNITS =64
-L2_LOSS =0.0021748704621434678
-LEARNING_RATE =0.0025271497924369904
-window = 80
-summary = run_model(window,BATCH_SIZE, LEARNING_RATE,N_EPOCHS, N_HIDDEN_UNITS,L2_LOSS, "epochs_hu", 2, True)
+#def generate_random_hyperparams(lr_min, lr_max, bt_min, bt_max,hu_min, hu_max, ep_min, ep_max, l2_min, l2_max):
 
 # The number of steps within one time segment (window)
 window_list  = [50, 80, 120, 160, 200]
-# window_list  = [50, 75]
-# The steps to take from one segment to the next; if this value is 50% of window size
-summary = []
-for i in range(10): # random search hyper-parameter space 10 times for best epochs and hidden units with fixed lr and bs
+performance_records = {}
 
-    print("==============================================================================================")
-    learning_rate, batch_size, hidden_units, epochs , l2_loss= generate_random_hyperparams(3, 1, 50, 500, 60, 80, 10, 50,5,1) 
+for window in window_list:
+    dump_path = PICKLE_DIR + "/" + str(window)
+    for i in range(5): # random search hyper-parameter space 10 times for best epochs and hidden units with fixed lr and bs
     
-    params = {'batch_size' : batch_size, 
-                   'learning_rate' : learning_rate, 
-                   'epochs' : epochs,
-                   'hidden_units' : hidden_units,
-                   'l2_loss' : l2_loss }
+        print("\n==============================================================================================")
+        learning_rate, batch_size, hidden_units, epochs , l2_loss= generate_random_hyperparams(3, 1, 100, 500, 20, 70, 20, 50, 3, 1) 
+        
+        params = {'batch_size' : batch_size, 
+                       'learning_rate' : learning_rate, 
+                       'epochs' : epochs,
+                       'hidden_units' : hidden_units,
+                       'l2_loss' : l2_loss }
+        
+        print(f'---------- Model : {str(i)} ---------------')    
+        print(f'\nlearning_rate: {learning_rate}, batch_size: {batch_size}, hidden_units: {hidden_units}, epochs: {epochs}, l2_loss: {l2_loss} \n')    
+        
+    #    summary = [run_model(window,batch_size, learning_rate,epochs, hidden_units,l2_loss, "epochs_hu", 2, False) for window in window_list]   
+        summary, saver, sess = run_model(window,batch_size,learning_rate,epochs, hidden_units,l2_loss, "epochs_hu", 3, False)
+        performance_records[(batch_size,learning_rate,epochs,hidden_units,l2_loss)] = summary
+        sess.close()    
     
-    print(f'---------- Model : {str(i)} ---------------')    
-    print(f'\nlearning_rate: {learning_rate}, batch_size: {batch_size}, hidden_units: {hidden_units}, epochs: {epochs}, l2_loss: {l2_loss} \n')    
+    if not os.path.exists(dump_path):
+        os.makedirs(dump_path)
     
-    summary = [run_model(window,batch_size, learning_rate,epochs, hidden_units,l2_loss, "epochs_hu", 2, False) for window in window_list]    
-    performance_records[i] = {'params' : params, 'summary' : summary}
+    print("Dumping Performance records ..")
+    pickle.dump(performance_records, open(dump_path + "/performance_records.p", "wb"))
 
-score = [{'params': performance_records[i]['params'] , 'score' : [ob['score'] for ob in performance_records[i]['summary']], 
-      'history': [ob['history'] for ob in performance_records[i]['summary']], 
-      'true_labels': [ob['true_labels'] for ob in performance_records[i]['summary']],
-      'predictions': [ob['predictions'] for ob in performance_records[i]['summary']] } for i in performance_records]
-
-
-
-DUMP_DIR = "pickle/"
-print("Dumping Performance records ..")
-pickle.dump(score, open(DUMP_DIR + "score.p", "wb"))
-# pickle.dump(history, open(DUMP_DIR + "history.p", "wb"))
-
-#data = pickle.load(open("pickle/score.p", 'rb'))
-#print(type(data))
+results = get_tuning_result(PICKLE_DIR)
 
 #------------------------------------Exporting the model------------------------------------
 # =============================================================================

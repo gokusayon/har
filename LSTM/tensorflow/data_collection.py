@@ -8,7 +8,7 @@ Created on Thu Oct 10 23:40:17 2019
 import pandas as pd
 import numpy as np
 from sklearn import preprocessing
-import os
+import os, pickle
 from glob import glob
 
 
@@ -54,4 +54,16 @@ def read_dataset(filepath):
     
     df[["ax","ay","az","la_x","la_y","la_z"]] =  X
     df = df.round({"ax":4,"ay":4,"az":4,"la_x":4,"la_y":4,"la_z":4})
+    return df
+
+def get_tuning_result(PICKLE_DIR):
+    pickles = [ name for name in os.listdir(PICKLE_DIR) if os.path.isdir(os.path.join(PICKLE_DIR, name)) ]
+    df = {}
+    for f in pickles:
+        filepath=PICKLE_DIR + f + '/performance_records.p'
+        dump = pickle.load(open(filepath, 'rb'))
+        params = [key for index, key in enumerate(dump)]
+        temp = [pd.DataFrame({key : val['score']}) for key, val in [(key, dump[key]) for key in params]]
+        temp = pd.concat(temp, axis = 1)
+        df[f] = temp
     return df
