@@ -26,7 +26,39 @@ from keras.utils import np_utils
 import os
 from sklearn.model_selection import train_test_split
 
-PICKLE_DIR = './pickle/'
+PICKLE_DIR = './pickle_wisdom/'
+
+def read_data(file_path):
+
+    column_names = ['user-id',
+                    'activity',
+                    'timestamp',
+                    'x-axis',
+                    'y-axis',
+                    'z-axis']
+    df = pd.read_csv(file_path,
+                     header=None,
+                     names=column_names)
+    # Last column has a ";" character which must be removed ...
+    df['z-axis'].replace(regex=True,
+      inplace=True,
+      to_replace=r';',
+      value=r'')
+    # ... and then this column must be transformed to float explicitly
+    df['z-axis'] = df['z-axis'].apply(convert_to_float)
+    # This is very important otherwise the model will not fit and loss
+    # will show up as NAN
+    df.dropna(axis=0, how='any', inplace=True)
+
+    return df
+
+def convert_to_float(x):
+
+    try:
+        return np.float(x)
+    except:
+        return np.nan
+
 
 def create_segments_and_labels(df, time_steps, step, label_name):
 
@@ -80,31 +112,26 @@ def window_testing(TIME_PERIODS):
 
     STEP_DISTANCE = int(STEP_DISTANCE)
     
-    x_train, y_train = create_segments_and_labels(df,
+    x_train, y_train = create_segments_and_labels(df_train,
                                               TIME_PERIODS,
                                               STEP_DISTANCE,
                                               LABEL)
-
-
-    x_train,x_test,y_train,y_test=train_test_split(x_train,y_train,test_size=0.2)
-    
-    
-    #print('x_train shape: ', x_train.shape)
-    #print(x_train.shape[0], 'training samples')
-    #print('y_train shape: ', y_train.shape)
+#    print('x_train shape: ', x_train.shape)
+#    print(x_train.shape[0], 'training samples')
+#    print('y_train shape: ', y_train.shape)
     
     
     # Set input & output dimensions
     num_time_periods, num_sensors = x_train.shape[1], x_train.shape[2]
     num_classes = le.classes_.size
-    #print(list(le.classes_))
+#    print(list(le.classes_))
     
     
     
     input_shape = (num_time_periods*num_sensors)
     x_train = x_train.reshape(x_train.shape[0], input_shape)
-    #print('x_train shape:', x_train.shape)
-    #print('input_shape:', input_shape)
+#    print('x_train shape:', x_train.shape)
+#    print('input_shape:', input_shape)
     
     
     x_train = x_train.astype('float32')
@@ -112,28 +139,33 @@ def window_testing(TIME_PERIODS):
     
     
     y_train_hot = np_utils.to_categorical(y_train, num_classes)
-    #print('New y_train shape: ', y_train_hot.shape)
+#    print('New y_train shape: ', y_train_hot.shape)
     
     
     
     #---------------------------------------------------------------------------------------------------
     
-    #print('x_train shape: ', x_test.shape)
-    #print(x_test.shape[0], 'training samples')
-    #print('y_train shape: ', y_test.shape)
+    x_test, y_test = create_segments_and_labels(df_test,
+                                                  TIME_PERIODS,
+                                                  STEP_DISTANCE,
+                                                  LABEL)
+    
+#    print('x_train shape: ', x_test.shape)
+#    print(x_test.shape[0], 'training samples')
+#    print('y_train shape: ', y_test.shape)
     
     
     # Set input & output dimensions
     num_time_periods, num_sensors = x_test.shape[1], x_test.shape[2]
     num_classes = le.classes_.size
-    #print(list(le.classes_))
+#    print(list(le.classes_))
     
     
     
     input_shape = (num_time_periods*num_sensors)
     x_test = x_test.reshape(x_test.shape[0], input_shape)
-    #print('x_train shape:', x_test.shape)
-    #print('input_shape:', input_shape)
+#    print('x_train shape:', x_test.shape)
+#    print('input_shape:', input_shape)
     
     
     x_test = x_test.astype('float32')
@@ -141,7 +173,7 @@ def window_testing(TIME_PERIODS):
     
     
     y_test_hot = np_utils.to_categorical(y_test, num_classes)
-    #print('New y_train shape: ', y_test_hot.shape)
+#    print('New y_train shape: ', y_test_hot.shape)
     
     #---------------------------------------------------------------------------------------------------
     
@@ -237,10 +269,12 @@ filepath = r'D:\ME\ME_2nd_Year\ADM\project\har\Dataset\final\dataset'
 
 labels=[ name for name in os.listdir(filepath) if os.path.isdir(os.path.join(filepath, name)) ]
 
-df = pd.read_csv("D:\ME\ME_2nd_Year\ADM\project\har\Dataset\colab_dataset_mobile.csv")
+#df = pd.read_csv("D:\ME\ME_2nd_Year\ADM\project\har\Dataset\colab_dataset_mobile.csv")
+
+df = read_data('D:\ME\ME_2nd_Year\ADM\project\har\Dataset\WISDM_ar_v1.1_raw.txt')
 
 # Define column name of the label vector
-LABEL = 'activity'
+LABEL = 'ActivityEncoded'
 # Transform the labels from String to Integer via LabelEncoder
 le = preprocessing.LabelEncoder()
 # Add a new column to the existing DataFrame with the encoded values
@@ -249,12 +283,28 @@ df[LABEL] = le.fit_transform(df['activity'].values.ravel())
 #------------------------Normalize features for training data set (values between 0 and 1)-----------------------
 
 
+df_test = df[df['user-id'] > 18]
+df_train = df[df['user-id'] <= 18]
+
+
+#------------------------Normalize features for training data set (values between 0 and 1)-----------------------
+# This must also be done to testing set later
+# Surpress warning for next 3 operation
 pd.options.mode.chained_assignment = None  # default='warn'
-df['x-axis'] = df['x-axis'] / df['x-axis'].max()
-df['y-axis'] = df['y-axis'] / df['y-axis'].max()
-df['z-axis'] = df['z-axis'] / df['z-axis'].max()
+df_train['x-axis'] = df_train['x-axis'] / df_train['x-axis'].max()
+df_train['y-axis'] = df_train['y-axis'] / df_train['y-axis'].max()
+df_train['z-axis'] = df_train['z-axis'] / df_train['z-axis'].max()
 # Round numbers
-df = df.round({'x-axis': 4, 'y-axis': 4, 'z-axis': 4})
+df_train = df_train.round({'x-axis': 4, 'y-axis': 4, 'z-axis': 4})
+
+
+
+pd.options.mode.chained_assignment = None  # default='warn'
+df_test['x-axis'] = df_test['x-axis'] / df_test['x-axis'].max()
+df_test['y-axis'] = df_test['y-axis'] / df_test['y-axis'].max()
+df_test['z-axis'] = df_test['z-axis'] / df_test['z-axis'].max()
+# Round numbers
+df_test = df_test.round({'x-axis': 4, 'y-axis': 4, 'z-axis': 4})
 
 
 windows =   [50, 80, 120, 160, 200]
